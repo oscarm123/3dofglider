@@ -11,7 +11,7 @@ A three-degree-of-freedom (point-mass) trajectory simulator for a guided glider,
 - **Drag**: cone frontal-area model, using velocity relative to the rotating atmosphere
 - **Guidance**: PD law that steers toward a fixed ECEF target point, with a configurable acceleration limit (5 g by default)
 - **Ground impact detection**: stops the run when geodetic altitude drops below zero
-- **Interactive HTML report** with latitude/longitude/altitude vs. time, ground track, ground-relative speed and a 3D trajectory
+- **Interactive HTML report** with latitude/longitude/altitude vs. time, ground track, ground-relative speed, a 3D trajectory and distance to target, with the target point marked on each
 
 ## Getting started
 

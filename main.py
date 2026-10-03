@@ -88,7 +88,7 @@ if __name__ == "__main__":
 
     dt = 1e-2
     t0 = 0.0
-    tf = 60.0
+    tf = 120.0
 
     # Target: equator, 0.15 deg E, 30 km
     ecef_target = geodetic_to_ecef(lat=np.deg2rad(0.0), lon=np.deg2rad(0.15), h=30e3)
@@ -123,4 +123,5 @@ if __name__ == "__main__":
     states_ecef = np.hstack((r_ecef, v_ecef))
 
     html_file = Path(__file__).parent / "glider.html"
-    plot_states_plotly(times, states_ecef, html_file=html_file, fontsize=13)
+    plot_states_plotly(times, states_ecef, html_file=html_file, fontsize=13,
+                       target_ecef=ecef_target)
