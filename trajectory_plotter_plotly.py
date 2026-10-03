@@ -3,48 +3,22 @@ import plotly.offline as pyo
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-# Earth rotation rate (rad/s)
-Omega_e = 7.2921150e-5  
-
-def rot_z(psi: float) -> np.ndarray:
-    c, s = np.cos(psi), np.sin(psi)
-    return np.array([[c, -s, 0],
-                     [s,  c, 0],
-                     [0,  0, 1]])
-
-def eci_to_ecef(vec_eci: np.ndarray, t: float) -> np.ndarray:
-    return rot_z(-Omega_e * t).dot(vec_eci)
-
-def ecef_to_geodetic(r_ecef: np.ndarray) -> tuple[float, float, float]:
-    x, y, z = r_ecef
-    a, f = 6378137.0, 1/298.257223563
-    e2 = f*(2-f)
-    lon = np.arctan2(y, x)
-    p   = np.hypot(x, y)
-    lat = np.arctan2(z, p*(1-e2))
-    lat0 = 0.0
-    while abs(lat-lat0) > 1e-12:
-        lat0 = lat
-        N    = a/np.sqrt(1 - e2*np.sin(lat0)**2)
-        lat  = np.arctan2(z + e2*N*np.sin(lat0), p)
-    N   = a/np.sqrt(1 - e2*np.sin(lat)**2)
-    alt = p/np.cos(lat) - N
-    return lat, lon, alt
+from helper_functions import WGS84_A, ecef_to_geodetic
 
 def plot_states_plotly(times, states, html_file="glider.html", fontsize=16):
     
     figure_width = 1300
     figure_height = 600
     
-    # --- 1) Build the three figures as before ---
-    # Compute LLA and flat‐earth (omitted here for brevity; same as you already have)
+    # --- 1) Build the figures ---
+    # states are ECEF [x, y, z, vx, vy, vz]; compute LLA and a flat-Earth track
     lats, lons, alts = [], [], []
-    for t, st in zip(times, states):
-        lat, lon, alt = ecef_to_geodetic( st[:3] )
+    for st in states:
+        lat, lon, alt = ecef_to_geodetic(st[:3])
         lats.append(np.degrees(lat)); lons.append(np.degrees(lon)); alts.append(alt)
-    lat0, lon0 = np.radians(lats[0]), np.radians(lons[0]); R=6378137.0
-    x     = (np.radians(lons)-lon0)*np.cos(lat0)*R
-    y     = (np.radians(lats)-lat0)*R
+    lat0, lon0 = np.radians(lats[0]), np.radians(lons[0])
+    x     = (np.radians(lons)-lon0)*np.cos(lat0)*WGS84_A
+    y     = (np.radians(lats)-lat0)*WGS84_A
 
     # LLA vs Time
     fig1 = make_subplots(rows=3, cols=1, shared_xaxes='all',
@@ -65,14 +39,13 @@ def plot_states_plotly(times, states, html_file="glider.html", fontsize=16):
                        width=figure_width, height=figure_height)
     fig2.update_yaxes(scaleanchor="x", scaleratio=1)
     
-    # spped
-    spped=np.linalg.vector_norm(states[:, 3:6], axis=1)
+    # Earth-relative speed
+    speed = np.linalg.vector_norm(states[:, 3:6], axis=1)
     fig3 = go.Figure()
-    fig3.add_trace(go.Scatter(x=times, y=spped, mode='lines', line=dict(width=4)))
-    fig3.update_layout(title="Speed", xaxis_title="Time (s)",
-                       yaxis_title="Speed (m)", font=dict(size=fontsize),
+    fig3.add_trace(go.Scatter(x=times, y=speed, mode='lines', line=dict(width=4)))
+    fig3.update_layout(title="Ground-Relative Speed", xaxis_title="Time (s)",
+                       yaxis_title="Speed (m/s)", font=dict(size=fontsize),
                        width=figure_width, height=figure_height)
-    fig3.update_yaxes(scaleanchor="x", scaleratio=1)
 
     # 3D trajectory
     fig4 = go.Figure(go.Scatter3d(x=x, y=y, z=alts, mode='lines', line=dict(width=4)))
@@ -98,7 +71,7 @@ def plot_states_plotly(times, states, html_file="glider.html", fontsize=16):
         {div4}
         </body></html>"""
 
-    with open(html_file, 'w') as f:
+    with open(html_file, 'w', encoding='utf-8') as f:
         f.write(html)
 
     print(f"Wrote updated trajectory to {html_file}. Open it in your browser and refresh to see the new plots.")
