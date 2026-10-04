@@ -8,12 +8,21 @@ from helper_functions import (G0, OMEGA_VEC, mu, ecef_to_eci, ecef_to_eci_vel,
                               geodetic_to_ecef, guidance_command, ned_to_ecef)
 from trajectory_plotter_plotly import plot_states_plotly
 
+class Target3DOF:
+    def __init__(self, r0_ecef, v0_ecef):
+        self.r0 = r0_ecef
+        self.v0 = v0_ecef
+
+    def state(self, t):
+        r = self.r0 + self.v0 * t
+        v = self.v0
+        return r, v
 
 # Glider model
 class Glider3DOF:
-    def __init__(self, mass, ecef_target, cone_radius=0.5, C_D=0.8, a_max=5 * G0):
+    def __init__(self, mass, target, cone_radius=0.5, C_D=0.8, a_max=5 * G0):
         self.mass = mass
-        self.target_ecef = ecef_target
+        self.target = target
         self.A_ref = np.pi * cone_radius**2  # frontal area of the cone
         self.C_D = C_D
         self.a_max = a_max
@@ -38,10 +47,11 @@ class Glider3DOF:
         # Gravity in ECI
         a_gravity = -mu * r_eci / np.linalg.norm(r_eci)**3
 
+        target_r_ecef, target_v_ecef = self.target.state(t)
         # Guidance command is computed in ECEF, so rotate it into ECI
         r_ecef = eci_to_ecef(r_eci, t)
         v_ecef = eci_to_ecef_vel(v_eci, r_eci, t)
-        a_command_ecef = guidance_command(r_ecef, self.target_ecef, v_ecef, np.zeros(3),
+        a_command_ecef = guidance_command(r_ecef, target_r_ecef, v_ecef, target_v_ecef,
                                           a_max=self.a_max)
         a_command = ecef_to_eci(a_command_ecef, t)
 
@@ -91,7 +101,17 @@ if __name__ == "__main__":
     tf = 120.0
 
     # Target: equator, 0.15 deg E, 30 km
-    ecef_target = geodetic_to_ecef(lat=np.deg2rad(0.0), lon=np.deg2rad(0.15), h=30e3)
+    target_lat = np.deg2rad(0.0)
+    target_lon = np.deg2rad(0.15)
+    target_alt = 30e3
+    target_ecef = geodetic_to_ecef(lat=target_lat, lon=target_lon, h=target_alt)
+    target_v_ned = np.array([0.0, 0.0, 0.0])  # stationary target
+    target_v_ecef = np.array([0.0, 0.0, 0.0])  # stationary target
+
+    # Initial Earth-relative NED velocity (north 400 m/s, east 0, down 0)
+    target_v_ned0 = np.array([400.0, 0.0, 0.0])
+    target_v_ecef0 = ned_to_ecef(target_v_ned0, target_lat, target_lon)
+    target_v_eci0 = ecef_to_eci_vel(target_v_ecef0, target_ecef, t0)
 
     # Initial geodetic conditions (0 deg N, 0 deg E, 50 km)
     lat0, lon0, h0 = np.deg2rad(0.0), np.deg2rad(0.0), 50e3
@@ -107,7 +127,8 @@ if __name__ == "__main__":
     state0 = np.hstack((r_eci0, v_eci0))
 
     tick = datetime.now()
-    glider = Glider3DOF(mass=100.0, ecef_target=ecef_target)
+    target = Target3DOF(r_ecef0, v_ecef0)
+    glider = Glider3DOF(mass=100.0, target=target)
     times, states = propagate_eci(state0, t0, tf, dt, glider)
     diff = datetime.now() - tick
     # Print final ECI position
@@ -124,4 +145,4 @@ if __name__ == "__main__":
 
     html_file = Path(__file__).parent / "glider.html"
     plot_states_plotly(times, states_ecef, html_file=html_file, fontsize=13,
-                       target_ecef=ecef_target)
+                       target_ecef=target_ecef)
